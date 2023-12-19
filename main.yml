@@ -1,0 +1,18 @@
+- name: Automation script to change db_url in configuration.yaml
+  hosts: localhost
+  gather_facts: True
+  vars:
+    ansible_python_interpreter: /root/miniconda3/bin/python3.11
+  tasks:
+    - name: find .db files in the directory
+      find:
+        path: /rohit_wsl/scripts
+        patterns: '*.db'
+        file_type: file
+      register: db_files
+
+    - name: Loop through each .db file
+      include_tasks: test_tasks.yaml
+      loop: "{{ db_files.files }}"
+      loop_control:
+        loop_var: outer_var
