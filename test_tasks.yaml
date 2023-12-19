@@ -1,0 +1,52 @@
+- name: Automation script to change db_url in configuration.yaml
+  hosts: localhost
+  gather_facts: True
+  vars:
+    ansible_python_interpreter: /root/miniconda3/bin/python3.11
+  tasks:
+    - name: find .db files in the directory
+      find:
+        path: /rohit_wsl/scripts
+        patterns: '*.db'
+        file_type: file
+      register: db_files
+
+    - name: Loop through each .db file
+      include_tasks: test_tasks.yaml
+      loop: "{{ db_files.files }}"
+      loop_control:
+        loop_var: outer_var
+
+(base) root@INBAN-5WML0F3:/rohit_wsl/scripts# cat test_tasks.yaml
+    - name: Get running docker containers
+      docker_host_info:
+        containers: yes
+      register: docker_info
+
+    - name: Update configuration.yaml for the current .db file
+      lineinfile:
+        dest: /rohit_wsl/scripts/configuration.yaml
+        regexp: '^(.*)db_url: sqlite:///(.*)$'
+        line: ' db_url: sqlite:///{{ outer_var.path | basename }}'
+        state: present
+
+    - name: Start docker container with the docker-compose.yml file
+      command: docker-compose up -d
+      args:
+        chdir: /rohit_wsl/scripts
+
+    - name: Watch docker logs for the current .db file
+      ansible.builtin.wait_for:
+        path: "/rohit_wsl/scripts/home-assistant.log"
+        search_regex: "Cleanup legacy entity_ids done=True"
+        delay: 60
+        timeout: 300
+
+    - name: Print message that migration is done for the current .db file
+      debug:
+        msg: "{{ outer_var.path | basename }} migration is done"
+
+    - name: Stop the docker container using docker-compose
+      command: docker-compose down
+      args:
+        chdir: /rohit_wsl/scripts
